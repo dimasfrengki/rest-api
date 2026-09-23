@@ -1,0 +1,23 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>REST API</title>
+<style>:root{--bg:#0f172a;--c:#1e293b;--t:#e2e8f0;--a:#6366f1}*{box-sizing:border-box}body{margin:auto;max-width:900px;padding:16px;font:15px system-ui;background:var(--bg);color:var(--t)}
+details,.box{background:var(--c);border-radius:10px;padding:10px 14px;margin:8px 0}summary{cursor:pointer}input,textarea{width:100%;padding:8px;margin:4px 0;border-radius:6px;border:1px solid #334155;background:#0f172a;color:var(--t)}
+button{background:var(--a);color:#fff;border:0;padding:8px 14px;border-radius:6px;margin:4px 4px 4px 0}pre{white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto}img{max-width:100%}
+nav button{background:#334155}h2{text-transform:capitalize}</style></head><body>
+<h1>⚡ REST API</h1><nav><button onclick="tab('docs')">Docs</button><button onclick="tab('admin')">Admin</button></nav>
+<div id="docs"></div>
+<div id="admin" hidden><div class="box"><input id="pw" type="password" placeholder="Password admin"><button onclick="adm()">Masuk</button></div><div class="box"><b>Ganti host massal</b><small> (kalau 1 provider mati, ganti host lama → baru di semua endpoint)</small><input id="rf" placeholder="https://host-lama.com"><input id="rt" placeholder="https://host-baru.com"><button onclick="rep()">Ganti semua</button></div><div id="cfg"></div></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[<>&"]/g,c=>'&#'+c.charCodeAt(0)+';');let A=[];
+function tab(t){$('#docs').hidden=t!='docs';$('#admin').hidden=t!='admin'}
+async function docs(){const j=await(await fetch('/api/list')).json(),g={};j.items.forEach(e=>(g[e.cat]??=[]).push(e));
+$('#docs').innerHTML=`<p>${j.total} endpoint</p>`+Object.entries(g).map(([c,a])=>`<h2>${c} (${a.length})</h2>`+a.map(e=>`<details data-p="${e.cat}/${e.name}"><summary><b>/api/${e.cat}/${e.name}</b></summary><p>${esc(e.desc)}</p>`+e.params.map(p=>{const[n,d]=p.split('=');return`<input data-n="${n}" placeholder="${n}${d!==undefined?' (opsional)':''}" value="${esc(d||'')}">`}).join('')+`<button onclick="tryit(this)">Coba</button><div></div></details>`).join('')).join('')}
+async function tryit(b){const d=b.parentNode,qs=new URLSearchParams();d.querySelectorAll('input').forEach(i=>i.value&&qs.set(i.dataset.n,i.value));
+const u='/api/'+d.dataset.p+'?'+qs,o=d.querySelector('div');o.textContent='...';const r=await fetch(u);
+o.innerHTML=(r.headers.get('content-type')||'').startsWith('image')?`<img src="${u}">`:'<pre>'+esc(JSON.stringify(await r.json().catch(()=>({})),null,2))+'</pre>'}
+async function adm(){const r=await fetch('/api/admin/config',{headers:{'x-admin-key':$('#pw').value}});if(!r.ok)return alert('Password salah');A=(await r.json()).items;
+$('#cfg').innerHTML=A.map((e,i)=>`<div class="box"><b>${e.path}</b> <label><input type="checkbox" style="width:auto" ${e.off?'':'checked'} onchange="put(${i},{off:!this.checked})"> aktif</label>`+(e.up?`<textarea id="u${i}" rows="2" placeholder="URL upstream, 1 baris 1 backup, pakai {param}">${esc(e.custom??e.def)}</textarea><button onclick="put(${i},{url:$('#u${i}').value})">Simpan</button><button onclick="put(${i},{url:null}).then(adm)">Reset</button><button onclick="tes(${i})">Tes</button>`:'<small>Endpoint lokal</small>')+'</div>').join('')}
+async function put(i,b){const r=await fetch('/api/admin/config',{method:'PUT',headers:{'x-admin-key':$('#pw').value,'content-type':'application/json'},body:JSON.stringify({path:A[i].path,...b})});alert(r.ok?'Tersimpan':'Gagal')}
+async function tes(i){const r=await(await fetch('/api/admin/test?path='+A[i].path,{headers:{'x-admin-key':$('#pw').value}})).json();alert((r.ok?'✅ OK ':'❌ Gagal ')+(r.ms||'')+'ms\n'+(r.preview||r.message))}
+async function rep(){const r=await(await fetch('/api/admin/replace',{method:'PUT',headers:{'x-admin-key':$('#pw').value,'content-type':'application/json'},body:JSON.stringify({from:$('#rf').value,to:$('#rt').value})})).json();alert('Diubah: '+(r.diubah??r.message));adm()}
+docs();
+</script></body></html>
